@@ -221,3 +221,71 @@ def train_vs_test_features(
 
     plt.tight_layout()
     plt.show()
+
+def find_peaks(labels: pd.DataFrame) -> pd.DataFrame:
+    max_cases_per_year = (
+        labels
+        .reset_index(level="year")
+        .groupby("year")
+        .max().rename(columns={"total_cases": "max_cases"})
+    )
+
+    max_week = labels.reset_index().merge(max_cases_per_year, on="year")
+    max_week = max_week[max_week["total_cases"] == max_week["max_cases"]]
+
+    return max_week[["year", "weekofyear"]].set_index("year")
+
+def calculate_epidemic_statistics(peaks: pd.DataFrame,
+                                  features: pd.DataFrame,
+                                  labels: pd.DataFrame,
+                                  period: int,
+                                  to_compare: list) -> pd.DataFrame:
+    merged = labels.reset_index().merge(peaks.reset_index(), on="year")
+
+    before = merged["weekofyear_x"] < merged["weekofyear_y"]
+    bound = merged["weekofyear_y"] - merged["weekofyear_x"] < period
+    pre_peak = merged[before & bound]
+
+    pre_peak = pre_peak.drop(columns=["weekofyear_y"]).rename(columns={"weekofyear_x": "weekofyear"})
+
+    yearly_stats = (
+        features
+        .reset_index()
+        .groupby("year")[to_compare].mean()
+        .rename(columns=lambda name: "mean_yearly_" + name)
+    )
+
+    epidemic_stats = (
+        features.reset_index()
+        .merge(pre_peak, on=["year", "weekofyear"])
+        .groupby("year")[to_compare].mean()
+        .rename(columns=lambda name: "mean_epidemic_" + name)
+    )
+
+    comparision = yearly_stats.merge(epidemic_stats, on="year")
+
+    return comparision
+
+def visualize_comparision(features: pd.DataFrame,
+                          labels: pd.DataFrame,
+                          period: int,
+                          to_compare: list,
+                          city: str) -> None:
+    
+    peaks = find_peaks(labels)
+    comparision = calculate_epidemic_statistics(peaks, features, labels, period, to_compare)
+    _, axes = plt.subplots(nrows=len(to_compare), figsize=(8, 5 * len(to_compare)), sharex=True)
+
+    for i, stat in enumerate(to_compare):
+        stat_cols = [col for col in comparision.columns if stat in col]
+        comparision[stat_cols].plot(kind="bar", ax=axes[i], width=0.6)
+
+        axes[i].set_title(f"Yearly vs Pre-Epidemic {stat} for {city}")
+        axes[i].set_ylabel(stat.capitalize())
+        axes[i].legend(["Yearly Avg", "Pre-Epidemic Avg"])
+        axes[i].grid(axis="y", linestyle="--", alpha=0.7)
+
+    plt.xticks(range(len(comparision.index)), comparision.index, rotation=0)
+    plt.xlabel("Year")
+    plt.tight_layout()
+    plt.show()
