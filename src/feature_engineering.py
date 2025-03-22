@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import itertools
 
 from sklearn.base import TransformerMixin, BaseEstimator
@@ -81,6 +82,23 @@ class NewFeaturesAdder(BaseEstimator, TransformerMixin):
         corr_series = X.corrwith(y, method=method)
         return corr_series.abs().sort_values(ascending=False)
 
+class PrevCasesAdder(BaseEstimator, TransformerMixin):
+    def __init__(self, k_prev: int) -> None:
+        self.k_prev = k_prev
+    
+    def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "PrevCasesAdder":
+        cases_values = y.reset_index()["total_cases"].values
+        self.cases_history = np.concatenate(([cases_values[0] for _ in range(self.k_prev)], cases_values))
+
+        return self
+
+    def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        prev_cases_dict = {
+            f"{i+1}_prev_cases": self.cases_history[self.k_prev - (i + 1):-(i + 1)] for i in range(self.k_prev)
+        }
+
+        return X.assign(**prev_cases_dict)
+
 def add_last_train_rows_to_test(
     train_x: pd.DataFrame,
     train_y: pd.DataFrame,
@@ -105,7 +123,8 @@ def add_last_train_rows_to_test(
 def create_pipeline(imputation_method: str,
                     top_n: int,
                     scaling_method: str,
-                    corr_method: str) -> Pipeline:
+                    corr_method: str,
+                    k_prev: int) -> Pipeline:
     scalers = {
         "standard": StandardScaler(),
         "minmax": MinMaxScaler()
@@ -117,6 +136,7 @@ def create_pipeline(imputation_method: str,
     pipeline = Pipeline([
         ("imputer", NAImputer(method=imputation_method)),
         ("features_adder", NewFeaturesAdder(top_n=top_n, corr_method=corr_method)),
+        ("k_prev_adder", PrevCasesAdder(k_prev=k_prev)),
         ("scaler", scalers[scaling_method])
     ])
 
