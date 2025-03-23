@@ -33,8 +33,9 @@ class ColumnAggregator(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
-        X[self.col_name] = X[self.columns].sum(axis=1)
-        return X
+        Z = X.copy()
+        Z[self.col_name] = X[self.columns].sum(axis=1)
+        return Z
 
 class NewFeaturesAdder(BaseEstimator, TransformerMixin):
     def __init__(self, top_n: int, corr_method: str = "pearson") -> None:
