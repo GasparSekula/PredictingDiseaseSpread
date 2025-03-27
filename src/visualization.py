@@ -66,12 +66,18 @@ def weekly_cases_by_year(labels: pd.DataFrame, city: str) -> None:
     plt.show()
 
 
-def plot_heatmap(data_city_sj: pd.DataFrame, data_city_iq: pd.DataFrame) -> None:
+def plot_heatmap(data_city_sj: pd.DataFrame, data_city_iq: pd.DataFrame, spearman: bool = False) -> None:
     _, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 4), sharey=True)
-    correlation_matrix_sj = data_city_sj.drop("week_start_date", axis=1).corr()
+    if spearman:
+        correlation_matrix_sj = data_city_sj.drop("week_start_date", axis=1).corr(method="spearman")
+    else:
+        correlation_matrix_sj = data_city_sj.drop("week_start_date", axis=1).corr(method="pearson")
     axes[0].set_title("Correlation Heatmap (San Juan)")
     sns.heatmap(correlation_matrix_sj, cmap="YlGnBu", ax=axes[0])
-    correlation_matrix_iq = data_city_iq.drop("week_start_date", axis=1).corr()
+    if spearman:
+        correlation_matrix_iq = data_city_iq.drop("week_start_date", axis=1).corr(method="spearman")
+    else:
+        correlation_matrix_iq = data_city_iq.drop("week_start_date", axis=1).corr(method="pearson")
     sns.heatmap(correlation_matrix_iq, cmap="YlGnBu", ax=axes[1])
     axes[1].set_title("Correlation Heatmap (Iquitos)")
     plt.show()
@@ -292,6 +298,7 @@ def visualize_comparision(features: pd.DataFrame,
     plt.tight_layout()
     plt.show()
     
+
 def visualize_differences_in_dataframes(columns: list,
                                         rows: list,
                                         data_frame_1: pd.DataFrame,
@@ -323,3 +330,16 @@ def visualize_differences_in_dataframes(columns: list,
 
     print(table)
     
+
+def visualize_histogram_labels(labels: pd.DataFrame) -> None:
+    plt.figure(figsize=(10, 6))
+    sns.set_palette("tab10")
+    sns.histplot(labels.loc["sj"].total_cases, bins=30, kde=True, label='San Juan', alpha=0.5)
+    sns.histplot(labels.loc["iq"].total_cases, bins=30, kde=True, color='orange', label='Iquitos', alpha=0.5)
+
+    plt.title("Total Cases Distribution")
+    plt.xlabel("Total Cases")
+    plt.ylabel("Density")
+    plt.legend()
+    plt.show()
+
