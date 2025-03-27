@@ -2,6 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from tabulate import tabulate
+
 
 def missing_data_percentage_by_city(
     data_city_sj: pd.DataFrame, data_city_iq: pd.DataFrame
@@ -296,6 +298,39 @@ def visualize_comparision(features: pd.DataFrame,
     plt.tight_layout()
     plt.show()
     
+
+def visualize_differences_in_dataframes(columns: list,
+                                        rows: list,
+                                        data_frame_1: pd.DataFrame,
+                                        data_frame_2: pd.DataFrame,
+                                        name_1: str = None,
+                                        name_2: str = None) -> None:
+    
+    df1 = data_frame_1.iloc[rows][columns]
+    df2 = data_frame_2.iloc[rows][columns]
+    
+    df = pd.merge(df1, df2, on=['year', 'weekofyear'])
+    
+    if name_1 is None:
+        name_1 = "_1"
+    if name_2 is None:
+        name_2 = "_2"
+
+    headers = ["Year, Week of Year"]
+    for col in columns:
+        headers.append(f"{col} {name_1}")
+    for col in columns:
+        headers.append(f"{col} {name_2}")
+
+    table = tabulate(
+        df, 
+        headers=headers, 
+        tablefmt="fancy_grid"
+    )
+
+    print(table)
+    
+
 def visualize_histogram_labels(labels: pd.DataFrame) -> None:
     plt.figure(figsize=(10, 6))
     sns.set_palette("tab10")
@@ -307,3 +342,4 @@ def visualize_histogram_labels(labels: pd.DataFrame) -> None:
     plt.ylabel("Density")
     plt.legend()
     plt.show()
+
