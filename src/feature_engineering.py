@@ -125,7 +125,8 @@ def create_pipeline(imputation_method: str,
                     top_n: int,
                     scaling_method: str,
                     corr_method: str,
-                    k_prev: int) -> Pipeline:
+                    k_prev: int,
+                    prev_cases: bool = True) -> Pipeline:
     scalers = {
         "standard": StandardScaler(),
         "minmax": MinMaxScaler()
@@ -134,11 +135,18 @@ def create_pipeline(imputation_method: str,
     if scaling_method not in scalers:
         raise ValueError(f"Scaling method '{scaling_method}' not supported.")
 
-    pipeline = Pipeline([
-        ("imputer", NAImputer(method=imputation_method)),
-        ("features_adder", NewFeaturesAdder(top_n=top_n, corr_method=corr_method)),
-        ("k_prev_adder", PrevCasesAdder(k_prev=k_prev)),
-        ("scaler", scalers[scaling_method])
-    ])
+    if prev_cases:
+        pipeline = Pipeline([
+            ("imputer", NAImputer(method=imputation_method)),
+            ("features_adder", NewFeaturesAdder(top_n=top_n, corr_method=corr_method)),
+            ("k_prev_adder", PrevCasesAdder(k_prev=k_prev)),
+            ("scaler", scalers[scaling_method])
+        ])
+    else:
+        pipeline = Pipeline([
+            ("imputer", NAImputer(method=imputation_method)),
+            ("features_adder", NewFeaturesAdder(top_n=top_n, corr_method=corr_method)),
+            ("scaler", scalers[scaling_method])
+        ])
 
     return pipeline
