@@ -222,4 +222,52 @@ def supporting_model(X_train: pd.DataFrame,
     
     return {"X_test": X_test_prevc, "X_train": X_train_added}
 
+def predict_iteratively_and_save(model_trainer,
+                                 model_name: str,
+                                 X_test_raw: pd.DataFrame,
+                                 y_train: np.ndarray,
+                                 k_prev: int,
+                                 submission_format_path: str,
+                                 output_path: str
+                                 ) -> None:
+
+    X_test = X_test_raw.copy()
+    X_pred = []
+
+    X_prev = model_trainer.get_X_train().iloc[-k_prev:]
+    y_prev = y_train[-k_prev:]
+
+    model = model_trainer.get_model()
+    scaler = model_trainer.get_scaler()
+    columns_expected = model_trainer.get_X_train().columns.tolist()
+
+    for i in range(len(X_test)):
+        row = X_test.iloc[i].copy()
+        for j in range(1, k_prev + 1):
+            row[f'prev_{j}'] = y_prev[-j]
+        row_scaled = pd.DataFrame(scaler.transform([row[columns_expected]]), columns=columns_expected)
+        y_new = model.predict(row_scaled)[0]
+        X_pred.append(y_new)
+        y_prev = np.append(y_prev[1:], y_new)
+
+    submission_format = pd.read_csv(submission_format_path)
+    assert len(X_pred) == len(submission_format), f"Prediction length mismatch for {model_name}"
+    submission_format['total_cases'] = np.round(X_pred).astype(int)
+    submission_format.to_csv(output_path, index=False)
+    print(f"Saved predictions for {model_name} to {output_path}")
+
+class DummyTrainer:
+    def __init__(self, model, X_train, scaler):
+        self.model = model
+        self.X_train = X_train
+        self.scaler = scaler
+
+    def get_model(self):
+        return self.model
     
+    def get_X_train(self):
+        return self.X_train
+    
+    def get_scaler(self):
+        return self.scaler
+
