@@ -63,6 +63,7 @@ def weekly_cases_by_year(labels: pd.DataFrame, city: str) -> None:
     plt.title(f"Seasonal Plot - Weekly Cases for {city}", fontsize=20)
     plt.ylabel("Total Cases")
     plt.xlabel("Week of Year")
+    plt.legend()
     plt.show()
 
 
