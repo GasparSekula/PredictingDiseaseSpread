@@ -30,15 +30,14 @@ class ModelTrainer():
             "minmax": MinMaxScaler()
             }
         
+        if scaling_method not in scalers:
+            raise ValueError(f"Scaling method '{scaling_method}' not supported.")
+
         self.scaler = scalers[scaling_method]
         self.scaler_supporting = scalers[scaling_method]
         
-        
-        if scaling_method not in scalers:
-            raise ValueError(f"Scaling method '{scaling_method}' not supported.")
-        
-        assert imputation_method in ["bfill", "ffill", "linear", "spline"], "Wrong imputation method."
-        assert corr_method in ["pearson", "spearman"], "Wrong correlation method."
+        assert imputation_method in ["bfill", "ffill", "linear", "spline"], f"{imputation_method} imputation method not supported."
+        assert corr_method in ["pearson", "spearman"], f"{corr_method} correlation method not supported."
         
         self.model = model
         self.imputation_method = imputation_method
@@ -65,7 +64,6 @@ class ModelTrainer():
         
         print(f"--- Model {self.model.__class__.__name__} ---")
         
-        # Preprocessing
         print("Preprocessing started.")
         na_imputer = NAImputer(method=self.imputation_method)
         X_train_imputed = na_imputer.fit_transform(X_train, y_train)
@@ -74,25 +72,21 @@ class ModelTrainer():
         features_adder.fit(X_train_imputed, y_train)
         X_train_added = features_adder.transform(X_train_imputed, y_train)
 
-        # Prev cases adder
         adder = PrevCasesAdder(k_prev = self.k_prev_targets)
         adder.fit(X_train_added, y_train)
         X_train_prevc = adder.transform(X_train_added)
     
-        scaler = StandardScaler() if self.scaling_method == "standard" else MinMaxScaler()
-        X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train_prevc), 
+        X_train_scaled = pd.DataFrame(self.scaler.fit_transform(X_train_prevc), 
                                     columns=X_train_prevc.columns, 
                                     index=X_train_prevc.index) 
-        self.scaler = scaler
+
         self.X_train = X_train_scaled
 
         print("Preprocessing finished.")
         
-        # Main model training
         print("Training model.")
         
-        y_train = y_train.to_numpy().ravel()
-        
+        y_train = y_train.to_numpy().ravel()    
         self.model.fit(X_train_scaled, y_train)
         
         print("Tunning model's hyperparameters.")
@@ -106,27 +100,22 @@ class ModelTrainer():
                                            n_jobs=-1,
                                            verbose=0)
         
-
         random_search.fit(X_train_scaled, y_train)
         
         self.cv_results = random_search.cv_results_
         self.best_model = random_search.best_estimator_
         
-        # Print CV results
         mean_scores = self.cv_results['mean_test_score']
         print(f'CV results: {",".join(f"{score:.4f}" for score in mean_scores)}')
-        print(f"Mean: {np.mean(mean_scores):.4f}")
-        
-        return None
-        
+        print(f"Mean: {np.mean(mean_scores):.4f}")        
              
     def fit_transform(self):
         pass
     
     def predict(self, X_test: pd.DataFrame) -> np.ndarray:
         X_test_scaled = pd.DataFrame(self.scaler.transform(X_test),
-                            columns=X_test.columns, 
-                            index=X_test.index)
+                                     columns=X_test.columns, 
+                                     index=X_test.index)
         return self.best_model.predict(X_test_scaled)
     
     def get_model(self):
@@ -139,15 +128,15 @@ class ModelTrainer():
         return self.scaler
 
 def supporting_model(X_train: pd.DataFrame, 
-                        y_train: pd.DataFrame,
-                        X_test: pd.DataFrame,
-                        models: list,
-                        grids: list,
-                        imputation_method: str = "linear",
-                        top_n_features: int = 10,
-                        scaling_method: str = "standard",
-                        corr_method: str = "pearson",
-                        k_prev_targets: int = 3) -> dict:
+                     y_train: pd.DataFrame,
+                     X_test: pd.DataFrame,
+                     models: list,
+                     grids: list,
+                     imputation_method: str = "linear",
+                     top_n_features: int = 10,
+                     scaling_method: str = "standard",
+                     corr_method: str = "pearson",
+                     k_prev_targets: int = 3) -> dict:
     
     print("Choosing supporting model.")
     
@@ -176,33 +165,33 @@ def supporting_model(X_train: pd.DataFrame,
     for model, grid in zip(models, grids):
         print(f"Evaluating model: {model.__class__.__name__}")
         random_search = RandomizedSearchCV(estimator=model,
-                            param_distributions=grid,
-                            n_iter=25,
-                            scoring='neg_mean_absolute_error',
-                            cv=5,
-                            random_state=42,
-                            n_jobs=-1,
-                            verbose=0)
+                                           param_distributions=grid,
+                                           n_iter=25,
+                                           scoring='neg_mean_absolute_error',
+                                           cv=5,
+                                           random_state=42,
+                                           n_jobs=-1,
+                                           verbose=0)
         random_search.fit(X_train_scaled, y_train)
         mean_score = random_search.best_score_
         print(f"Best score for {model.__class__.__name__}: {mean_score:.4f}")
 
         if mean_score > best_score:
             best_score = mean_score
+            best_model_name = model.__class__.__name__
+            best_model = random_search.best_estimator_
 
-    print(f"Best model: {best_model_name} with score: {best_score:.4f}")
-    
-    best_model = random_search.best_estimator_
-   
+    print(f"Best model: {best_model_name} with score: {best_score:.4f}")       
+
     X_test_scaled = pd.DataFrame(scaler.transform(X_test_added),
-                                  columns=X_test_added.columns, 
-                                  index=X_test_added.index)
+                                 columns=X_test_added.columns, 
+                                 index=X_test_added.index)
     
     y_pred = pd.DataFrame(best_model.predict(X_test_scaled), columns=["total_cases"], index=X_test.index)
 
     print("First 5 predictions:", y_pred.head().values.flatten())
     
-    print("preparing test dataset.")
+    print("Preparing test dataset.")
 
     X_train_tail = X_train_added.iloc[-k_prev_targets:]
     y_train_tail = pd.DataFrame(y_train[-k_prev_targets:], columns=["total_cases"], index=X_train_tail.index)
@@ -217,8 +206,8 @@ def supporting_model(X_train: pd.DataFrame,
     X_test_prevc = X_test_prevc.iloc[k_prev_targets:]
 
     X_test_prevc = pd.DataFrame(X_test_prevc,
-                                  columns=X_test_prevc.columns,
-                                  index=X_test.index)
+                                columns=X_test_prevc.columns,
+                                index=X_test.index)
     
     return {"X_test": X_test_prevc, "X_train": X_train_added}
 
