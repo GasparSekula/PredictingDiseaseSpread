@@ -79,14 +79,28 @@ class WeatherAggregator(TransformerMixin, BaseEstimator):
                 if period <= 0:
                     raise ValueError(f"Period '{period}' must be a positive integer.")
                 new_col_name_mean = f"{col}_rolling_mean_{period}w"
-                new_col_sd_mean = f"{col}_rolling_sd_{period}w"
+                new_col_name_std = f"{col}_rolling_std_{period}w"
 
                 def rolling_mean_by_year(group):
                     return group[col].rolling(window=period, min_periods=1).mean()
+                
+                def rolling_std_by_year(group):
+                    return group[col].rolling(window=period, min_periods=1).std()
 
                 X_aggregated[new_col_name_mean] = X.groupby(level='year', group_keys=False).apply(rolling_mean_by_year)
+                X_aggregated[new_col_name_std] = X.groupby(level='year', group_keys=False).apply(rolling_std_by_year)
 
         return X_aggregated
+    
+class RainfallStatsAdder(BaseEstimator, TransformerMixin):
+    def fit(self, X: pd.DataFrame, y: pd.DataFrame):
+        return self
+
+    def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        X["rainfall_flag"] = (X["precipitation_amt_mm"] > 0).astype(int)
+        X["precipitation_times_temp"] = X["precipitation_amt_mm"] * X["station_avg_temp_c"]
+
+        return X
 
 class PrevCasesAdder(BaseEstimator, TransformerMixin):
     __slots__ = ["k_prev", "cases_history"]
@@ -113,6 +127,22 @@ class PrevCasesAdder(BaseEstimator, TransformerMixin):
 
         return X.assign(**prev_cases_dict)
     
+class OutbreakAdder(BaseEstimator, TransformerMixin):
+    __slots__ = ["outbreak_threshold"]
+    
+    def fit(self, X: pd.DataFrame, y: pd.DataFrame):
+        weakly_mean = y["total_cases"].mean()
+        weakly_std = y["total_cases"].std()
+
+        self.outbreak_threshold = weakly_mean + 1.5 * weakly_std
+
+        return self
+    
+    def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        X["outbreak_flag"] = (X["1_prev_cases"] >= self.outbreak_threshold).astype(int)
+
+        return X
+
 class PrevCasesTestUpdater(BaseEstimator, TransformerMixin):
     __slots__ = ["k_prev", "k_prev_cases"]
 
@@ -143,6 +173,7 @@ def create_pipeline(aggregation_periods: list[int],
             ("imputer", NAImputer()),
             ("weather_aggregator", WeatherAggregator(aggregation_periods, cols_to_aggregate)),
             ("k_prev_adder", PrevCasesAdder(k_prev)),
+            ("outbreak_adder", OutbreakAdder()),
         ])
 
     if test:
