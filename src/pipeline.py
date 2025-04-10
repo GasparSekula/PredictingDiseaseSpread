@@ -88,7 +88,14 @@ class WeatherAggregator(TransformerMixin, BaseEstimator):
                     return group[col].rolling(window=period, min_periods=1).std()
 
                 X_aggregated[new_col_name_mean] = X.groupby(level='year', group_keys=False).apply(rolling_mean_by_year)
+                cols = X_aggregated.columns
+                X_aggregated.iloc[0, new_col_name_mean == cols] = X_aggregated.iloc[1, new_col_name_mean == cols]
+                X_aggregated.iloc[-1, new_col_name_mean == cols] = X_aggregated.iloc[-2, new_col_name_mean == cols] 
+                
                 X_aggregated[new_col_name_std] = X.groupby(level='year', group_keys=False).apply(rolling_std_by_year)
+                cols = X_aggregated.columns
+                X_aggregated.iloc[0, new_col_name_std == cols] = X_aggregated.iloc[1, new_col_name_std == cols]
+                X_aggregated.iloc[-1, new_col_name_std == cols] = X_aggregated.iloc[-2, new_col_name_std == cols] 
 
         return X_aggregated
     
