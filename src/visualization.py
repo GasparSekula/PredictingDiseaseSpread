@@ -63,6 +63,7 @@ def weekly_cases_by_year(labels: pd.DataFrame, city: str) -> None:
     plt.title(f"Seasonal Plot - Weekly Cases for {city}", fontsize=20)
     plt.ylabel("Total Cases")
     plt.xlabel("Week of Year")
+    plt.legend()
     plt.show()
 
 
@@ -343,3 +344,29 @@ def visualize_histogram_labels(labels: pd.DataFrame) -> None:
     plt.legend()
     plt.show()
 
+def visualize_predictions(predictions: pd.Series, city: str) -> None:
+    fig, ax = plt.subplots(figsize=(12, 6))
+    predictions.plot(ax=ax)
+
+    index_values = predictions.index.get_level_values('weekofyear')
+
+    xticks_positions = []
+    xticks_labels = []
+
+    for i, (year, week) in enumerate(predictions.index):
+        if week == 1:
+            xticks_positions.append(i)
+            xticks_labels.append(str(year))  # You can customize the label
+
+    ax.set_xticks(xticks_positions)
+    ax.set_xticklabels(xticks_labels)
+
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Predictions")
+    city_name = "San Juan" if city == "sj" else "Iquitos"
+    ax.set_title(f"Predictions Over Time for {city_name}")
+
+    plt.xticks(rotation=45, ha='right')
+
+    plt.tight_layout()
+    plt.show()
